@@ -1,6 +1,6 @@
 package net.neoforged.neodev;
 
-import net.neoforged.moddevgradle.tasks.CreateMinecraftArtifactsTask;
+import net.neoforged.nfrtgradle.CreateMinecraftArtifactsTask;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.OutputFile;
 

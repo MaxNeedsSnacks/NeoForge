@@ -1,12 +1,12 @@
 package net.neoforged.neodev;
 
-import net.neoforged.moddevgradle.dsl.NeoFormRuntime;
+import net.neoforged.nfrtgradle.NeoFormRuntimeExtension;
 import net.neoforged.moddevgradle.dsl.RunModel;
 import net.neoforged.moddevgradle.internal.DistributionDisambiguation;
 import net.neoforged.moddevgradle.internal.ModDevPlugin;
-import net.neoforged.moddevgradle.tasks.CreateMinecraftArtifactsTask;
-import net.neoforged.moddevgradle.tasks.DownloadAssetsTask;
-import net.neoforged.moddevgradle.tasks.NeoFormRuntimeTask;
+import net.neoforged.nfrtgradle.CreateMinecraftArtifactsTask;
+import net.neoforged.nfrtgradle.DownloadAssetsTask;
+import net.neoforged.nfrtgradle.NeoFormRuntimeTask;
 import net.neoforged.moddevgradle.internal.OperatingSystemDisambiguation;
 import net.neoforged.moddevgradle.internal.PrepareRun;
 import net.neoforged.moddevgradle.internal.utils.DependencyUtils;
@@ -78,7 +78,7 @@ public class NeoDevPlugin implements Plugin<Project> {
             files.setCanBeConsumed(false);
             files.setCanBeResolved(true);
             files.defaultDependencies(spec -> {
-                spec.add(dependencyFactory.create("net.neoforged:neoform-runtime:" + NeoFormRuntime.DEFAULT_VERSION).attributes(attributes -> {
+                spec.add(dependencyFactory.create("net.neoforged:neoform-runtime:" + NeoFormRuntimeExtension.DEFAULT_VERSION).attributes(attributes -> {
                     attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, project.getObjects().named(Bundling.class, Bundling.SHADOWED));
                 }));
             });
