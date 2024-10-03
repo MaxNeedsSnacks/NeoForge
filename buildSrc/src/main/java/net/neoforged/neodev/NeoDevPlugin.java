@@ -1,14 +1,14 @@
 package net.neoforged.neodev;
 
-import net.neoforged.nfrtgradle.NeoFormRuntimeExtension;
+import net.neoforged.moddevgradle.internal.PrepareRun;
+import net.neoforged.nfrtgradle.CreateMinecraftArtifacts;
+import net.neoforged.nfrtgradle.DownloadAssets;
 import net.neoforged.moddevgradle.dsl.RunModel;
 import net.neoforged.moddevgradle.internal.DistributionDisambiguation;
 import net.neoforged.moddevgradle.internal.ModDevPlugin;
-import net.neoforged.nfrtgradle.CreateMinecraftArtifactsTask;
-import net.neoforged.nfrtgradle.DownloadAssetsTask;
+import net.neoforged.nfrtgradle.NeoFormRuntimePlugin;
 import net.neoforged.nfrtgradle.NeoFormRuntimeTask;
 import net.neoforged.moddevgradle.internal.OperatingSystemDisambiguation;
-import net.neoforged.moddevgradle.internal.PrepareRun;
 import net.neoforged.moddevgradle.internal.utils.DependencyUtils;
 import net.neoforged.neodev.installer.CreateArgsFile;
 import net.neoforged.neodev.installer.CreateInstallerProfile;
@@ -45,6 +45,7 @@ public class NeoDevPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply("net.neoforged.moddev.repositories");
+        project.getPlugins().apply(NeoFormRuntimePlugin.class);
 
         project.getDependencies().attributesSchema(attributesSchema -> {
             attributesSchema.attribute(ModDevPlugin.ATTRIBUTE_DISTRIBUTION).getDisambiguationRules().add(DistributionDisambiguation.class);
@@ -56,7 +57,7 @@ public class NeoDevPlugin implements Plugin<Project> {
         var createSources = configureMinecraftDecompilation(project);
 
         project.getTasks().register("setup", Sync.class, task -> {
-            task.from(project.zipTree(createSources.flatMap(CreateMinecraftArtifactsTask::getSourcesArtifact)));
+            task.from(project.zipTree(createSources.flatMap(CreateMinecraftArtifacts::getSourcesArtifact)));
             task.into(project.file("src/main/java/"));
         });
     }
@@ -64,7 +65,7 @@ public class NeoDevPlugin implements Plugin<Project> {
     /**
      * Sets up NFRT, and creates the sources and resources artifacts.
      */
-    private TaskProvider<CreateMinecraftArtifactsTask> configureMinecraftDecompilation(Project project) {
+    private TaskProvider<CreateMinecraftArtifacts> configureMinecraftDecompilation(Project project) {
         var configurations = project.getConfigurations();
         var dependencyFactory = project.getDependencyFactory();
         var tasks = project.getTasks();
@@ -73,16 +74,6 @@ public class NeoDevPlugin implements Plugin<Project> {
         var rawNeoFormVersion = project.getProviders().gradleProperty("neoform_version");
         var minecraftVersion = project.getProviders().gradleProperty("minecraft_version");
         var mcAndNeoFormVersion = minecraftVersion.zip(rawNeoFormVersion, (mc, nf) -> mc + "-" + nf);
-
-        var neoFormRuntimeConfig = configurations.create("neoFormRuntime", files -> {
-            files.setCanBeConsumed(false);
-            files.setCanBeResolved(true);
-            files.defaultDependencies(spec -> {
-                spec.add(dependencyFactory.create("net.neoforged:neoform-runtime:" + NeoFormRuntimeExtension.DEFAULT_VERSION).attributes(attributes -> {
-                    attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, project.getObjects().named(Bundling.class, Bundling.SHADOWED));
-                }));
-            });
-        });
 
         // Configuration for all artifacts that should be passed to NFRT to prevent repeated downloads
         var neoFormRuntimeArtifactManifestNeoForm = configurations.create("neoFormRuntimeArtifactManifestNeoForm", spec -> {
@@ -94,11 +85,10 @@ public class NeoDevPlugin implements Plugin<Project> {
         });
 
         tasks.withType(NeoFormRuntimeTask.class, task -> {
-            task.getNeoFormRuntime().from(neoFormRuntimeConfig);
             task.addArtifactsToManifest(neoFormRuntimeArtifactManifestNeoForm);
         });
 
-        return tasks.register("createSourceArtifacts", CreateMinecraftArtifactsTask.class, task -> {
+        return tasks.register("createSourceArtifacts", CreateMinecraftArtifacts.class, task -> {
             var minecraftArtifactsDir = neoDevBuildDir.map(dir -> dir.dir("artifacts"));
             task.getSourcesArtifact().set(minecraftArtifactsDir.map(dir -> dir.file("base-sources.jar")));
             task.getResourcesArtifact().set(minecraftArtifactsDir.map(dir -> dir.file("minecraft-local-resources-aka-client-extra.jar")));
@@ -146,7 +136,7 @@ public class NeoDevPlugin implements Plugin<Project> {
         var atFile = project.getRootProject().file("src/main/resources/META-INF/accesstransformer.cfg");
         var applyAt = tasks.register("applyAccessTransformer", ApplyAccessTransformer.class, task -> {
             task.classpath(jstConfiguration);
-            task.getInputJar().set(createSourceArtifacts.flatMap(CreateMinecraftArtifactsTask::getSourcesArtifact));
+            task.getInputJar().set(createSourceArtifacts.flatMap(CreateMinecraftArtifacts::getSourcesArtifact));
             task.getAccessTransformer().set(atFile);
             task.getOutputJar().set(neoDevBuildDir.map(dir -> dir.file("artifacts/access-transformed-sources.jar")));
             task.getLibraries().from(neoFormDependencies);
@@ -167,7 +157,7 @@ public class NeoDevPlugin implements Plugin<Project> {
             task.into(mcSourcesPath);
         });
 
-        var downloadAssets = tasks.register("downloadAssets", DownloadAssetsTask.class, task -> {
+        var downloadAssets = tasks.register("downloadAssets", DownloadAssets.class, task -> {
             task.getNeoFormArtifact().set(mcAndNeoFormVersion.map(v -> "net.neoforged:neoform:" + v + "@zip"));
             task.getAssetPropertiesFile().set(neoDevBuildDir.map(dir -> dir.file("minecraft_assets.properties")));
         });
@@ -245,7 +235,7 @@ public class NeoDevPlugin implements Plugin<Project> {
                     },
                     additionalClasspath,
                     createSourceArtifacts.get().getResourcesArtifact(),
-                    downloadAssets.flatMap(DownloadAssetsTask::getAssetPropertiesFile));
+                    downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile));
             prepareRunTasks.put(run, prepareRunTask);
             ideSyncTask.configure(task -> task.dependsOn(prepareRunTask));
         });
@@ -582,8 +572,8 @@ public class NeoDevPlugin implements Plugin<Project> {
             spec.getDependencies().add(projectDep(dependencyFactory, neoForgeProject, "moduleOnly"));
         });
 
-        var downloadAssets = neoForgeProject.getTasks().named("downloadAssets", DownloadAssetsTask.class);
-        var createArtifacts = neoForgeProject.getTasks().named("createSourceArtifacts", CreateMinecraftArtifactsTask.class);
+        var downloadAssets = neoForgeProject.getTasks().named("downloadAssets", DownloadAssets.class);
+        var createArtifacts = neoForgeProject.getTasks().named("createSourceArtifacts", CreateMinecraftArtifacts.class);
         var writeNeoDevConfig = neoForgeProject.getTasks().named("writeNeoDevConfig", WriteUserDevConfig.class);
 
         var localRuntime = project.getConfigurations().create("localRuntime", config -> {
@@ -620,7 +610,7 @@ public class NeoDevPlugin implements Plugin<Project> {
                     configureLegacyClasspath,
                     additionalClasspath,
                     createArtifacts.get().getResourcesArtifact(),
-                    downloadAssets.flatMap(DownloadAssetsTask::getAssetPropertiesFile));
+                    downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile));
             prepareRunTasks.put(run, prepareRunTask);
             ideSyncTask.configure(task -> task.dependsOn(prepareRunTask));
         });
@@ -644,7 +634,7 @@ public class NeoDevPlugin implements Plugin<Project> {
                     writeNeoDevConfig,
                     configureLegacyClasspath,
                     createArtifacts.get().getResourcesArtifact(),
-                    downloadAssets.flatMap(DownloadAssetsTask::getAssetPropertiesFile),
+                    downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile),
                     testTask
             );
         }
