@@ -1,5 +1,6 @@
 package net.neoforged.neodev;
 
+import net.neoforged.moddevgradle.internal.IdeIntegration;
 import net.neoforged.moddevgradle.internal.PrepareRun;
 import net.neoforged.nfrtgradle.CreateMinecraftArtifacts;
 import net.neoforged.nfrtgradle.DownloadAssets;
@@ -20,7 +21,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.dsl.DependencyFactory;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
-import org.gradle.api.attributes.Bundling;
 import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -240,9 +240,8 @@ public class NeoDevPlugin implements Plugin<Project> {
             ideSyncTask.configure(task -> task.dependsOn(prepareRunTask));
         });
 
-        ModDevPlugin.configureIntelliJModel(project, ideSyncTask, prepareRunTasks, extension.getRuns());
-
-        // TODO: configure eclipse
+        var ideIntegration = IdeIntegration.forProject(project);
+        ideIntegration.configureRuns(prepareRunTasks, extension.getRuns());
 
         var genSourcePatches = tasks.register("generateSourcePatches", GenerateSourcePatches.class, task -> {
             task.getOriginalJar().set(applyAt.flatMap(ApplyAccessTransformer::getOutputJar));
@@ -615,9 +614,9 @@ public class NeoDevPlugin implements Plugin<Project> {
             ideSyncTask.configure(task -> task.dependsOn(prepareRunTask));
         });
 
-        ModDevPlugin.configureIntelliJModel(project, ideSyncTask, prepareRunTasks, extension.getRuns());
-
-        // TODO: configure eclipse
+        var ideIntegration = IdeIntegration.forProject(project);
+        ideIntegration.configureSyncTask(ideSyncTask);
+        ideIntegration.configureRuns(prepareRunTasks, extension.getRuns());
 
         if (junit) {
             var testExtension = project.getExtensions().create(NeoDevTestExtension.NAME, NeoDevTestExtension.class);
