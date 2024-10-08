@@ -36,15 +36,6 @@ sourceSets {
     }
 }
 
-configurations {
-    // Used by the plugin to add DevLaunch
-    localRuntime {
-        canBeResolved = false
-        canBeConsumed = true
-    }
-    runtimeClasspath.extendsFrom localRuntime
-}
-
 dependencies {
     implementation project(path: ':neoforge', configuration: 'runtimeElements')
     implementation(testframeworkProject)

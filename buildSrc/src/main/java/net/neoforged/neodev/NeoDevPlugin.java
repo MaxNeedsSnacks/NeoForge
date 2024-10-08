@@ -1,20 +1,18 @@
 package net.neoforged.neodev;
 
-import net.neoforged.moddevgradle.internal.IdeIntegration;
-import net.neoforged.moddevgradle.internal.PrepareRun;
-import net.neoforged.nfrtgradle.CreateMinecraftArtifacts;
-import net.neoforged.nfrtgradle.DownloadAssets;
-import net.neoforged.moddevgradle.dsl.RunModel;
 import net.neoforged.moddevgradle.internal.DistributionDisambiguation;
 import net.neoforged.moddevgradle.internal.ModDevPlugin;
-import net.neoforged.nfrtgradle.NeoFormRuntimePlugin;
-import net.neoforged.nfrtgradle.NeoFormRuntimeTask;
+import net.neoforged.moddevgradle.internal.NeoDevFacade;
 import net.neoforged.moddevgradle.internal.OperatingSystemDisambiguation;
 import net.neoforged.moddevgradle.internal.utils.DependencyUtils;
 import net.neoforged.neodev.installer.CreateArgsFile;
 import net.neoforged.neodev.installer.CreateInstallerProfile;
 import net.neoforged.neodev.installer.CreateLauncherProfile;
 import net.neoforged.neodev.installer.InstallerProcessor;
+import net.neoforged.nfrtgradle.CreateMinecraftArtifacts;
+import net.neoforged.nfrtgradle.DownloadAssets;
+import net.neoforged.nfrtgradle.NeoFormRuntimePlugin;
+import net.neoforged.nfrtgradle.NeoFormRuntimeTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -35,7 +33,6 @@ import org.gradle.api.tasks.testing.Test;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -162,10 +159,6 @@ public class NeoDevPlugin implements Plugin<Project> {
             task.getAssetPropertiesFile().set(neoDevBuildDir.map(dir -> dir.file("minecraft_assets.properties")));
         });
 
-        var localRuntime = configurations.create("localRuntime", config -> {
-            config.getDependencies().add(Tools.DEVLAUNCH.asDependency(project));
-        });
-
         var installerConfiguration = project.getConfigurations().create("installer");
         var installerLibrariesConfiguration = configurations.create("installerLibraries");
         var modulesConfiguration = configurations.create("moduleOnly");
@@ -209,39 +202,27 @@ public class NeoDevPlugin implements Plugin<Project> {
             });
         }
 
-        var ideSyncTask = tasks.register("neoForgeIdeSync");
-
-        // TODO: Do we even want that?
-        var additionalClasspath = configurations.create("additionalRuntimeClasspath", spec -> {
-            spec.setDescription("Contains dependencies of every run, that should not be considered boot classpath modules.");
-            spec.setCanBeResolved(true);
-            spec.setCanBeConsumed(false);
-        });
-
-        Map<RunModel, TaskProvider<PrepareRun>> prepareRunTasks = new IdentityHashMap<>();
-        extension.getRuns().all(run -> {
-            var prepareRunTask = ModDevPlugin.setupRunInGradle(
-                    project,
-                    neoDevBuildDir,
-                    ideSyncTask,
-                    run,
-                    modulesConfiguration,
-                    writeNeoDevConfig,
-                    spec -> {
-                        spec.getDependencies().addLater(mcAndNeoFormVersion.map(v -> dependencyFactory.create("net.neoforged:neoform:" + v).capabilities(caps -> {
-                            caps.requireCapability("net.neoforged:neoform-dependencies");
-                        })));
-                        spec.extendsFrom(installerLibrariesConfiguration, modulesConfiguration, userDevCompileOnlyConfiguration);
-                    },
-                    additionalClasspath,
-                    createSourceArtifacts.get().getResourcesArtifact(),
-                    downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile));
-            prepareRunTasks.put(run, prepareRunTask);
-            ideSyncTask.configure(task -> task.dependsOn(prepareRunTask));
-        });
-
-        var ideIntegration = IdeIntegration.forProject(project);
-        ideIntegration.configureRuns(prepareRunTasks, extension.getRuns());
+        NeoDevFacade.setupRuns(
+                project,
+                neoDevBuildDir,
+                extension.getRuns(),
+                writeNeoDevConfig,
+                modulePath -> {
+                    modulePath.extendsFrom(modulesConfiguration);
+                },
+                legacyClassPath -> {
+                    legacyClassPath.getDependencies().addLater(mcAndNeoFormVersion.map(v -> dependencyFactory.create("net.neoforged:neoform:" + v).capabilities(caps -> {
+                        caps.requireCapability("net.neoforged:neoform-dependencies");
+                    })));
+                    legacyClassPath.getDependencies().add(
+                            dependencyFactory.create(
+                                    project.files(createSourceArtifacts.flatMap(CreateMinecraftArtifacts::getResourcesArtifact))
+                            )
+                    );
+                    legacyClassPath.extendsFrom(installerLibrariesConfiguration, modulesConfiguration, userDevCompileOnlyConfiguration);
+                },
+                downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile)
+        );
 
         var genSourcePatches = tasks.register("generateSourcePatches", GenerateSourcePatches.class, task -> {
             task.getOriginalJar().set(applyAt.flatMap(ApplyAccessTransformer::getOutputJar));
@@ -575,19 +556,6 @@ public class NeoDevPlugin implements Plugin<Project> {
         var createArtifacts = neoForgeProject.getTasks().named("createSourceArtifacts", CreateMinecraftArtifacts.class);
         var writeNeoDevConfig = neoForgeProject.getTasks().named("writeNeoDevConfig", WriteUserDevConfig.class);
 
-        var localRuntime = project.getConfigurations().create("localRuntime", config -> {
-            config.getDependencies().add(Tools.DEVLAUNCH.asDependency(project));
-        });
-
-        var ideSyncTask = tasks.register("neoForgeIdeSync");
-
-        // TODO: Do we even want that?
-        var additionalClasspath = configurations.create("additionalRuntimeClasspath", spec -> {
-            spec.setDescription("Contains dependencies of every run, that should not be considered boot classpath modules.");
-            spec.setCanBeResolved(true);
-            spec.setCanBeConsumed(false);
-        });
-
         Consumer<Configuration> configureLegacyClasspath = spec -> {
             spec.getDependencies().addLater(mcAndNeoFormVersion.map(v -> dependencyFactory.create("net.neoforged:neoform:" + v).capabilities(caps -> {
                 caps.requireCapability("net.neoforged:neoform-dependencies");
@@ -595,46 +563,44 @@ public class NeoDevPlugin implements Plugin<Project> {
             spec.getDependencies().add(projectDep(dependencyFactory, neoForgeProject, "installer"));
             spec.getDependencies().add(projectDep(dependencyFactory, neoForgeProject, "moduleOnly"));
             spec.getDependencies().add(projectDep(dependencyFactory, neoForgeProject, "userdevCompileOnly"));
+            // TODO: Convert into a cross-project dependency too
+            spec.getDependencies().add(
+                    dependencyFactory.create(
+                            project.files(createArtifacts.flatMap(CreateMinecraftArtifacts::getResourcesArtifact))
+                    )
+            );
         };
 
-        Map<RunModel, TaskProvider<PrepareRun>> prepareRunTasks = new IdentityHashMap<>();
-        extension.getRuns().all(run -> {
-            var prepareRunTask = ModDevPlugin.setupRunInGradle(
-                    project,
-                    neoDevBuildDir,
-                    ideSyncTask,
-                    run,
-                    modulesConfiguration,
-                    writeNeoDevConfig,
-                    configureLegacyClasspath,
-                    additionalClasspath,
-                    createArtifacts.get().getResourcesArtifact(),
-                    downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile));
-            prepareRunTasks.put(run, prepareRunTask);
-            ideSyncTask.configure(task -> task.dependsOn(prepareRunTask));
+        extension.getRuns().configureEach(run -> {
+            configureLegacyClasspath.accept(run.getAdditionalRuntimeClasspathConfiguration());
         });
-
-        var ideIntegration = IdeIntegration.forProject(project);
-        ideIntegration.configureSyncTask(ideSyncTask);
-        ideIntegration.configureRuns(prepareRunTasks, extension.getRuns());
+        NeoDevFacade.setupRuns(
+                project,
+                neoDevBuildDir,
+                extension.getRuns(),
+                writeNeoDevConfig,
+                modulePath -> {
+                    modulePath.extendsFrom(modulesConfiguration);
+                },
+                configureLegacyClasspath,
+                downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile)
+        );
 
         if (junit) {
             var testExtension = project.getExtensions().create(NeoDevTestExtension.NAME, NeoDevTestExtension.class);
             var testTask = tasks.register("junitTest", Test.class, test -> test.setGroup("verification"));
             tasks.named("check").configure(task -> task.dependsOn(testTask));
 
-            ModDevPlugin.setupTesting(
+            NeoDevFacade.setupTestTask(
                     project,
+                    neoDevBuildDir, testTask, writeNeoDevConfig,
                     testExtension.getLoadedMods(),
                     testExtension.getTestedMod(),
-                    neoDevBuildDir,
-                    ideSyncTask,
-                    modulesConfiguration,
-                    writeNeoDevConfig,
+                    modulePath -> {
+                        modulePath.extendsFrom(modulesConfiguration);
+                    },
                     configureLegacyClasspath,
-                    createArtifacts.get().getResourcesArtifact(),
-                    downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile),
-                    testTask
+                    downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile)
             );
         }
     }

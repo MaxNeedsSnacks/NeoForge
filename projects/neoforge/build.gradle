@@ -85,11 +85,6 @@ configurations {
         canBeConsumed = true
     }
     implementation.extendsFrom installer
-    localRuntime {
-        canBeResolved = false
-        canBeConsumed = true
-    }
-    runtimeClasspath.extendsFrom localRuntime
 }
 
 dependencies {

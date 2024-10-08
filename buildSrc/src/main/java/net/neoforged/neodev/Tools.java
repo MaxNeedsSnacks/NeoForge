@@ -9,8 +9,7 @@ public enum Tools {
     AUTO_RENAMING_TOOL("net.neoforged:AutoRenamingTool:%s:all", "art_version"),
     INSTALLERTOOLS("net.neoforged.installertools:installertools:%s", "installertools_version"),
     JARSPLITTER("net.neoforged.installertools:jarsplitter:%s", "installertools_version"),
-    BINPATCHER("net.neoforged.installertools:binarypatcher:%s:fatjar", "installertools_version"),
-    DEVLAUNCH("net.neoforged:DevLaunch:%s", "devlaunch_version");
+    BINPATCHER("net.neoforged.installertools:binarypatcher:%s:fatjar", "installertools_version");
 
     private final String gavPattern;
     private final String versionProperty;
