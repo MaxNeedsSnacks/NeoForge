@@ -3,7 +3,7 @@ package net.neoforged.neodev;
 import net.neoforged.minecraftdependencies.MinecraftDependenciesPlugin;
 import net.neoforged.moddevgradle.internal.NeoDevFacade;
 import net.neoforged.moddevgradle.internal.utils.DependencyUtils;
-import net.neoforged.moddevgradle.jarjar.JarJar;
+import net.neoforged.moddevgradle.tasks.JarJar;
 import net.neoforged.neodev.installer.CreateArgsFile;
 import net.neoforged.neodev.installer.CreateInstallerProfile;
 import net.neoforged.neodev.installer.CreateLauncherProfile;
