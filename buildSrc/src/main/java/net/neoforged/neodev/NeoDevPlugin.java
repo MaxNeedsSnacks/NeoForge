@@ -1,10 +1,9 @@
 package net.neoforged.neodev;
 
-import net.neoforged.moddevgradle.internal.DistributionDisambiguation;
-import net.neoforged.moddevgradle.internal.ModDevPlugin;
+import net.neoforged.minecraftdependencies.MinecraftDependenciesPlugin;
 import net.neoforged.moddevgradle.internal.NeoDevFacade;
-import net.neoforged.moddevgradle.internal.OperatingSystemDisambiguation;
 import net.neoforged.moddevgradle.internal.utils.DependencyUtils;
+import net.neoforged.moddevgradle.jarjar.JarJar;
 import net.neoforged.neodev.installer.CreateArgsFile;
 import net.neoforged.neodev.installer.CreateInstallerProfile;
 import net.neoforged.neodev.installer.CreateLauncherProfile;
@@ -23,7 +22,6 @@ import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
@@ -43,11 +41,7 @@ public class NeoDevPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply("net.neoforged.moddev.repositories");
         project.getPlugins().apply(NeoFormRuntimePlugin.class);
-
-        project.getDependencies().attributesSchema(attributesSchema -> {
-            attributesSchema.attribute(ModDevPlugin.ATTRIBUTE_DISTRIBUTION).getDisambiguationRules().add(DistributionDisambiguation.class);
-            attributesSchema.attribute(ModDevPlugin.ATTRIBUTE_OPERATING_SYSTEM).getDisambiguationRules().add(OperatingSystemDisambiguation.class);
-        });
+        project.getPlugins().apply(MinecraftDependenciesPlugin.class);
     }
 
     public void configureBase(Project project) {
@@ -267,8 +261,9 @@ public class NeoDevPlugin implements Plugin<Project> {
                         "net/neoforged/neoforge/versions/neoform/");
             });
         });
-        var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("main");
-        ModDevPlugin.setupJarJar(project, mainSourceSet, "universalJar");
+
+        var jarJarTask = JarJar.registerWithConfiguration(project, "jarJar");
+        universalJar.configure(task -> task.from(jarJarTask));
 
         var createCleanArtifacts = tasks.register("createCleanArtifacts", CreateCleanArtifacts.class, task -> {
             var cleanArtifactsDir = neoDevBuildDir.map(dir -> dir.dir("artifacts/clean"));
