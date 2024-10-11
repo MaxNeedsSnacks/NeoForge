@@ -15,8 +15,6 @@ import net.neoforged.nfrtgradle.NeoFormRuntimeTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ProjectDependency;
-import org.gradle.api.artifacts.dsl.DependencyFactory;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
@@ -27,67 +25,19 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.bundling.Zip;
-import org.gradle.api.tasks.testing.Test;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class NeoDevPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply("net.neoforged.moddev.repositories");
-        project.getPlugins().apply(NeoFormRuntimePlugin.class);
         project.getPlugins().apply(MinecraftDependenciesPlugin.class);
-    }
 
-    public void configureBase(Project project) {
-        var createSources = configureMinecraftDecompilation(project);
-
-        project.getTasks().register("setup", Sync.class, task -> {
-            task.from(project.zipTree(createSources.flatMap(CreateMinecraftArtifacts::getSourcesArtifact)));
-            task.into(project.file("src/main/java/"));
-        });
-    }
-
-    /**
-     * Sets up NFRT, and creates the sources and resources artifacts.
-     */
-    private TaskProvider<CreateMinecraftArtifacts> configureMinecraftDecompilation(Project project) {
-        var configurations = project.getConfigurations();
-        var dependencyFactory = project.getDependencyFactory();
-        var tasks = project.getTasks();
-        var neoDevBuildDir = project.getLayout().getBuildDirectory().dir("neodev");
-
-        var rawNeoFormVersion = project.getProviders().gradleProperty("neoform_version");
-        var minecraftVersion = project.getProviders().gradleProperty("minecraft_version");
-        var mcAndNeoFormVersion = minecraftVersion.zip(rawNeoFormVersion, (mc, nf) -> mc + "-" + nf);
-
-        // Configuration for all artifacts that should be passed to NFRT to prevent repeated downloads
-        var neoFormRuntimeArtifactManifestNeoForm = configurations.create("neoFormRuntimeArtifactManifestNeoForm", spec -> {
-            spec.setCanBeConsumed(false);
-            spec.setCanBeResolved(true);
-            spec.getDependencies().addLater(mcAndNeoFormVersion.map(version -> {
-                return dependencyFactory.create("net.neoforged:neoform:" + version);
-            }));
-        });
-
-        tasks.withType(NeoFormRuntimeTask.class, task -> {
-            task.addArtifactsToManifest(neoFormRuntimeArtifactManifestNeoForm);
-        });
-
-        return tasks.register("createSourceArtifacts", CreateMinecraftArtifacts.class, task -> {
-            var minecraftArtifactsDir = neoDevBuildDir.map(dir -> dir.dir("artifacts"));
-            task.getSourcesArtifact().set(minecraftArtifactsDir.map(dir -> dir.file("base-sources.jar")));
-            task.getResourcesArtifact().set(minecraftArtifactsDir.map(dir -> dir.file("minecraft-local-resources-aka-client-extra.jar")));
-            task.getNeoFormArtifact().set(mcAndNeoFormVersion.map(version -> "net.neoforged:neoform:" + version + "@zip"));
-        });
-    }
-
-    public void configureNeoForge(Project project) {
         var createSourceArtifacts = configureMinecraftDecompilation(project);
 
         var configurations = project.getConfigurations();
@@ -519,90 +469,45 @@ public class NeoDevPlugin implements Plugin<Project> {
         });
     }
 
-    private Provider<List<String>> configurationToGavList(Configuration configuration) {
-        return configuration.getIncoming().getArtifacts().getResolvedArtifacts().map(results -> {
-            return results.stream().map(DependencyUtils::guessMavenGav).toList();
-        });
-    }
+    /**
+     * Sets up NFRT, and creates the sources and resources artifacts.
+     */
+    static TaskProvider<CreateMinecraftArtifacts> configureMinecraftDecompilation(Project project) {
+        project.getPlugins().apply(NeoFormRuntimePlugin.class);
 
-    // TODO: the only point of this is to configure runs that depend on neoforge. Maybe this could be done with less code duplication...
-    // TODO: Gradle says "thou shalt not referenceth otherth projects" yet here we are
-    // TODO: depend on neoforge configurations that the moddev plugin also uses
-    public void configureExtra(Project project, boolean junit) {
-        var neoForgeProject = project.getRootProject().getChildProjects().get("neoforge");
-
-        var dependencyFactory = project.getDependencyFactory();
         var configurations = project.getConfigurations();
+        var dependencyFactory = project.getDependencyFactory();
         var tasks = project.getTasks();
         var neoDevBuildDir = project.getLayout().getBuildDirectory().dir("neodev");
-
-        var extension = project.getExtensions().create(NeoDevExtension.NAME, NeoDevExtension.class);
 
         var rawNeoFormVersion = project.getProviders().gradleProperty("neoform_version");
         var minecraftVersion = project.getProviders().gradleProperty("minecraft_version");
         var mcAndNeoFormVersion = minecraftVersion.zip(rawNeoFormVersion, (mc, nf) -> mc + "-" + nf);
 
-        // TODO: this is temporary
-        var modulesConfiguration = project.getConfigurations().create("moduleOnly", spec -> {
-            spec.getDependencies().add(projectDep(dependencyFactory, neoForgeProject, "moduleOnly"));
+        // Configuration for all artifacts that should be passed to NFRT to prevent repeated downloads
+        var neoFormRuntimeArtifactManifestNeoForm = configurations.create("neoFormRuntimeArtifactManifestNeoForm", spec -> {
+            spec.setCanBeConsumed(false);
+            spec.setCanBeResolved(true);
+            spec.getDependencies().addLater(mcAndNeoFormVersion.map(version -> {
+                return dependencyFactory.create("net.neoforged:neoform:" + version);
+            }));
         });
 
-        var downloadAssets = neoForgeProject.getTasks().named("downloadAssets", DownloadAssets.class);
-        var createArtifacts = neoForgeProject.getTasks().named("createSourceArtifacts", CreateMinecraftArtifacts.class);
-        var writeNeoDevConfig = neoForgeProject.getTasks().named("writeNeoDevConfig", WriteUserDevConfig.class);
-
-        Consumer<Configuration> configureLegacyClasspath = spec -> {
-            spec.getDependencies().addLater(mcAndNeoFormVersion.map(v -> dependencyFactory.create("net.neoforged:neoform:" + v).capabilities(caps -> {
-                caps.requireCapability("net.neoforged:neoform-dependencies");
-            })));
-            spec.getDependencies().add(projectDep(dependencyFactory, neoForgeProject, "installer"));
-            spec.getDependencies().add(projectDep(dependencyFactory, neoForgeProject, "moduleOnly"));
-            spec.getDependencies().add(projectDep(dependencyFactory, neoForgeProject, "userdevCompileOnly"));
-            // TODO: Convert into a cross-project dependency too
-            spec.getDependencies().add(
-                    dependencyFactory.create(
-                            project.files(createArtifacts.flatMap(CreateMinecraftArtifacts::getResourcesArtifact))
-                    )
-            );
-        };
-
-        extension.getRuns().configureEach(run -> {
-            configureLegacyClasspath.accept(run.getAdditionalRuntimeClasspathConfiguration());
+        tasks.withType(NeoFormRuntimeTask.class, task -> {
+            task.addArtifactsToManifest(neoFormRuntimeArtifactManifestNeoForm);
         });
-        NeoDevFacade.setupRuns(
-                project,
-                neoDevBuildDir,
-                extension.getRuns(),
-                writeNeoDevConfig,
-                modulePath -> {
-                    modulePath.extendsFrom(modulesConfiguration);
-                },
-                configureLegacyClasspath,
-                downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile)
-        );
 
-        if (junit) {
-            var testExtension = project.getExtensions().create(NeoDevTestExtension.NAME, NeoDevTestExtension.class);
-            var testTask = tasks.register("junitTest", Test.class, test -> test.setGroup("verification"));
-            tasks.named("check").configure(task -> task.dependsOn(testTask));
-
-            NeoDevFacade.setupTestTask(
-                    project,
-                    neoDevBuildDir, testTask, writeNeoDevConfig,
-                    testExtension.getLoadedMods(),
-                    testExtension.getTestedMod(),
-                    modulePath -> {
-                        modulePath.extendsFrom(modulesConfiguration);
-                    },
-                    configureLegacyClasspath,
-                    downloadAssets.flatMap(DownloadAssets::getAssetPropertiesFile)
-            );
-        }
+        return tasks.register("createSourceArtifacts", CreateMinecraftArtifacts.class, task -> {
+            var minecraftArtifactsDir = neoDevBuildDir.map(dir -> dir.dir("artifacts"));
+            task.getSourcesArtifact().set(minecraftArtifactsDir.map(dir -> dir.file("base-sources.jar")));
+            task.getResourcesArtifact().set(minecraftArtifactsDir.map(dir -> dir.file("minecraft-local-resources-aka-client-extra.jar")));
+            task.getNeoFormArtifact().set(mcAndNeoFormVersion.map(version -> "net.neoforged:neoform:" + version + "@zip"));
+        });
     }
 
-    private static ProjectDependency projectDep(DependencyFactory dependencyFactory, Project project, String configurationName) {
-        var dep = dependencyFactory.create(project);
-        dep.setTargetConfiguration(configurationName);
-        return dep;
+    private Provider<List<String>> configurationToGavList(Configuration configuration) {
+        return configuration.getIncoming().getArtifacts().getResolvedArtifacts().map(results -> {
+            return results.stream().map(DependencyUtils::guessMavenGav).toList();
+        });
     }
 }

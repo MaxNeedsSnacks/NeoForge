@@ -1,11 +1,10 @@
-import net.neoforged.neodev.NeoDevPlugin
+import net.neoforged.neodev.NeoDevBasePlugin
 
 plugins {
     id 'java-library'
-    id 'net.neoforged.neodev'
 }
 
-plugins.getPlugin(NeoDevPlugin).configureBase(project)
+apply plugin: NeoDevBasePlugin
 
 dependencies {
     implementation("net.neoforged:neoform:${project.minecraft_version}-${project.neoform_version}") {

@@ -7,7 +7,8 @@ plugins {
     id 'neoforge.formatting-conventions'
 }
 
-plugins.getPlugin(NeoDevPlugin).configureExtra(project, true)
+apply plugin : net.neoforged.neodev.NeoDevExtraPlugin
+apply plugin : net.neoforged.neodev.NeoDevExtraTestingPlugin
 
 evaluationDependsOn(":neoforge")
 
