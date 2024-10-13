@@ -1,5 +1,6 @@
 package net.neoforged.neodev;
 
+import net.neoforged.minecraftdependencies.MinecraftDependenciesPlugin;
 import net.neoforged.moddevgradle.internal.NeoDevFacade;
 import net.neoforged.nfrtgradle.CreateMinecraftArtifacts;
 import net.neoforged.nfrtgradle.DownloadAssets;
@@ -18,6 +19,8 @@ import java.util.function.Consumer;
 public class NeoDevExtraPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
+        project.getPlugins().apply(MinecraftDependenciesPlugin.class);
+
         var neoForgeProject = project.getRootProject().getChildProjects().get("neoforge");
 
         var dependencyFactory = project.getDependencyFactory();

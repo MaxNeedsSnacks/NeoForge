@@ -17,17 +17,10 @@ repositories {
 }
 
 dependencies {
-    implementation "net.neoforged:moddev-gradle:${project.moddev_plugin_version}"
+    // buildSrc is an includedbuild of the parent directory (gradle.parent)
+    // ../settings.gradle sets the moddevgradle_plugin_version accordingly
+    implementation "net.neoforged:moddev-gradle:${gradle.parent.ext.moddevgradle_plugin_version}"
 
     implementation "com.google.code.gson:gson:${project.gson_version}"
     implementation "io.codechicken:DiffPatch:${project.diffpatch_version}"
-}
-
-gradlePlugin {
-    plugins {
-        neodev {
-            id = 'net.neoforged.neodev'
-            implementationClass = 'net.neoforged.neodev.NeoDevPlugin'
-        }
-    }
 }

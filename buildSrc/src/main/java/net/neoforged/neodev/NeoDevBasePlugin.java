@@ -10,7 +10,6 @@ public class NeoDevBasePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         // These plugins allow us to declare dependencies on Minecraft libraries needed to compile the official sources
-        project.getPlugins().apply("net.neoforged.moddev.repositories");
         project.getPlugins().apply(MinecraftDependenciesPlugin.class);
 
         var createSources = NeoDevPlugin.configureMinecraftDecompilation(project);

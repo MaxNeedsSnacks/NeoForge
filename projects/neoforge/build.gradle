@@ -1,4 +1,3 @@
-import net.neoforged.neodev.NeoDevPlugin
 
 // TODO re-enable
 //import net.neoforged.jarcompatibilitychecker.gradle.JCCPlugin
@@ -12,7 +11,7 @@ plugins {
     id 'neoforge.versioning'
 }
 
-plugins.getPlugin(NeoDevPlugin).configureNeoForge(project)
+apply plugin : net.neoforged.neodev.NeoDevPlugin
 
 gradleutils.setupSigning(project: project, signAllPublications: true)
 

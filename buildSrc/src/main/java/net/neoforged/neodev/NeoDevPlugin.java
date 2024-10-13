@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 public class NeoDevPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        project.getPlugins().apply("net.neoforged.moddev.repositories");
         project.getPlugins().apply(MinecraftDependenciesPlugin.class);
 
         var createSourceArtifacts = configureMinecraftDecompilation(project);

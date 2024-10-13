@@ -1,5 +1,0 @@
-includeBuild("../../ModDevGradle") {
-    dependencySubstitution {
-        substitute module("net.neoforged:moddev-gradle") using project(":")
-    }
-}
